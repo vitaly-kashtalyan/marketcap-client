@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"path"
 	"strconv"
 	"time"
 
@@ -81,6 +82,7 @@ func NewClient(httpClient *http.Client) *Client {
 }
 
 func (c *Client) DoRequest(endpoint string, values interface{}, results interface{}) error {
+	c.BaseURL.Path = path.Join(c.BaseURL.Path, endpoint)
 	req, err := http.NewRequest(http.MethodGet, c.BaseURL.String(), nil)
 	if err != nil {
 		return err
