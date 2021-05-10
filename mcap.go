@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
-	"path"
 	"strconv"
 	"time"
 
@@ -25,10 +24,10 @@ type Client struct {
 }
 
 func (c *Client) GetCandles(cr CandlesRequest) (candles Candles, err error) {
-	var rowData = CandlesRowData{}
+	var rowData = candlesRowData{}
 	var candle Candle
 
-	err = c.DoRequest("candles", cr, &rowData)
+	err = c.doRequest("/candles", cr, &rowData)
 	if err != nil {
 		return
 	}
@@ -40,7 +39,31 @@ func (c *Client) GetCandles(cr CandlesRequest) (candles Candles, err error) {
 		}
 		candles = append(candles, candle)
 	}
+	return
+}
 
+func (c *Client) GetAssets() (listOfAssets Assets, err error) {
+	err = c.doRequest("/assets", nil, &listOfAssets)
+	return
+}
+
+func (c *Client) GetOrderbook(obr OrderbookRequest) (ob Orderbook, err error) {
+	err = c.doRequest("/orderbook", obr, &ob)
+	return
+}
+
+func (c *Client) GetSummary() (md MarketData, err error) {
+	err = c.doRequest("/summary", nil, &md)
+	return
+}
+
+func (c *Client) GetTicker() (t Ticker, err error) {
+	err = c.doRequest("/ticker", nil, &t)
+	return
+}
+
+func (c *Client) GetTrades(tr TradesRequest) (t Trades, err error) {
+	err = c.doRequest("/trades", tr, &t)
 	return
 }
 
@@ -81,9 +104,8 @@ func NewClient(httpClient *http.Client) *Client {
 	return c
 }
 
-func (c *Client) DoRequest(endpoint string, values interface{}, results interface{}) error {
-	c.BaseURL.Path = path.Join(c.BaseURL.Path, endpoint)
-	req, err := http.NewRequest(http.MethodGet, c.BaseURL.String(), nil)
+func (c *Client) doRequest(endpoint string, values interface{}, results interface{}) error {
+	req, err := http.NewRequest(http.MethodGet, c.BaseURL.String()+endpoint, nil)
 	if err != nil {
 		return err
 	}
@@ -106,15 +128,14 @@ func (c *Client) DoRequest(endpoint string, values interface{}, results interfac
 		_ = resp.Body.Close()
 	}()
 
-	err = CheckResponse(resp)
+	err = checkResponse(resp)
 	if err != nil {
 		return err
 	}
-
 	return json.NewDecoder(resp.Body).Decode(&results)
 }
 
-func CheckResponse(r *http.Response) error {
+func checkResponse(r *http.Response) error {
 	if c := r.StatusCode; c >= 200 && c <= 299 {
 		return nil
 	}
@@ -143,7 +164,7 @@ type CandlesRequest struct {
 	Symbol    string `url:"symbol"`
 }
 
-type CandlesRowData [][]interface{}
+type candlesRowData [][]interface{}
 
 type Candles []Candle
 
@@ -153,6 +174,79 @@ type Candle struct {
 	Low   float64
 	Open  float64
 	Close float64
+}
+
+type Assets map[string]Asset
+
+type Asset struct {
+	Name        string  `json:"name"`
+	Description string  `json:"description"`
+	CanWithdraw bool    `json:"can_withdraw"`
+	CanDeposit  bool    `json:"can_deposit"`
+	MinWithdraw float64 `json:"min_withdraw"`
+	MaxWithdraw float64 `json:"max_withdraw"`
+	MakerFee    float64 `json:"maker_fee"`
+	TakerFee    float64 `json:"taker_fee"`
+}
+
+type OrderbookRequest struct {
+	Depth  int    `url:"depth,omitempty"`
+	Level  int    `url:"level,omitempty"`
+	Symbol string `url:"symbol"`
+}
+
+type Orderbook struct {
+	Timestamp int64       `json:"timestamp"`
+	Asks      [][]float64 `json:"asks"`
+	Bids      [][]float64 `json:"bids"`
+}
+
+type MarketData struct {
+	Message string                `json:"msg"`
+	Data    map[string]MarketProp `json:"data"`
+}
+type MarketProp struct {
+	ID            int64  `json:"id"`
+	BaseVolume    string `json:"baseVolume"`
+	High24Hr      string `json:"high24hr"`
+	HighestBid    string `json:"highestBid"`
+	IsFrozen      string `json:"isFrozen"`
+	Last          string `json:"last"`
+	Low24Hr       string `json:"low24hr"`
+	LowestAsk     string `json:"lowestAsk"`
+	PercentChange string `json:"percentChange"`
+	QuoteVolume   string `json:"quoteVolume"`
+}
+
+type Ticker map[string]PriceChange
+
+type PriceChange struct {
+	BaseCurrency         string  `json:"base_currency"`
+	BaseVolume           float64 `json:"base_volume"`
+	Description          string  `json:"description"`
+	HighestBidPrice      float64 `json:"highest_bid_price"`
+	IsFrozen             bool    `json:"isFrozen"`
+	LastPrice            float64 `json:"last_price"`
+	LowestAskPrice       float64 `json:"lowest_ask_price"`
+	Past24HrsHighPrice   float64 `json:"past_24hrs_high_price"`
+	Past24HrsLowPrice    float64 `json:"past_24hrs_low_price"`
+	Past24HrsPriceChange float64 `json:"past_24hrs_price_change"`
+	QuoteVolume          float64 `json:"quote_volume"`
+	QuoteCurrency        string  `json:"quote_currency"`
+}
+
+type Trades []struct {
+	TradeID        int64   `json:"tradeID"`
+	Price          float64 `json:"price"`
+	BaseVolume     float64 `json:"base_volume"`
+	QuoteVolume    float64 `json:"quote_volume"`
+	TradeTimestamp int64   `json:"trade_timestamp"`
+	Type           string  `json:"type"`
+}
+
+type TradesRequest struct {
+	Symbol string `url:"symbol"`
+	Type   string `url:"type,omitempty"`
 }
 
 type ErrorResponse struct {
